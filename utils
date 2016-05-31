@@ -1,0 +1,44 @@
+#!/bin/bash
+load_conf()
+{
+    source /etc/zfs-gate.conf
+}
+
+decode_qs()
+{
+    declare -Ag request
+    for _tmp in ${QUERY_STRING//&/ }; do
+        eval request[\"${_tmp%=*}\"]=\"$(busybox httpd -d "${_tmp#*=}")\"
+    done
+}
+
+dataset_exists()
+{
+    zfs list "$1" &>/dev/null
+}
+
+# https://gist.github.com/cdown/1163649
+# urlencode <string>
+urlencode() {
+    old_lc_collate=$LC_COLLATE
+    LC_COLLATE=C
+    
+    local length="${#1}"
+    for (( i = 0; i < length; i++ )); do
+        local c="${1:i:1}"
+        case $c in
+            [a-zA-Z0-9.~_-]) printf "$c" ;;
+            *) printf '%%%02X' "'$c" ;;
+        esac
+    done
+    
+    LC_COLLATE=$old_lc_collate
+}
+
+# matches iqn in form below
+# * iqn.1993-08.org.debian:deepin.15.1.amd64
+# * iqn.1993-08.org.debian:01:d4acd8b86f
+iqn_validate()
+{
+    [[ $1 =~ ^iqn\.[0-9]{4}-[0-9]{2}(\.[a-zA-Z0-9_]+){2}(:[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)*)+$ ]]
+}

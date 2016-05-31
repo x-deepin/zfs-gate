@@ -1,0 +1,5 @@
+#!/bin/bash
+echo 'content-type: text/plain'
+echo
+
+zfs list -H -o name

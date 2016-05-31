@@ -1,0 +1,19 @@
+#!/bin/bash
+source utils
+load_conf
+decode_qs
+
+if ! iqn_validate "${request[target_iqn]}"; then
+    echo 'HTTP/1.0 400'
+    echo 'Content-type: text/plain'
+    echo 
+    echo invalid target iqn: \"${request[target_iqn]}\"
+    exit 1
+fi
+
+set -x
+
+targetcli /backstores/iblock                delete "${request[target_iqn]}"
+targetcli /iscsi/                           delete "${request[target_iqn]}"
+
+zfs destroy rpool/images/${request[target_iqn]##*.}

@@ -1,0 +1,15 @@
+#!/bin/bash
+source utils
+load_conf
+
+echo 'content-type: text/plain'
+echo
+
+while read line; do
+    cols=($line)
+    [[ "$IMAGES_DATASET" == "${cols[0]}" ]] && continue
+    cols[0]=${cols[0]#$IMAGES_DATASET}
+    cols[0]=${cols[0]#/}
+    [[ -z "${cols[0]}" ]] && continue
+    echo ${cols[@]}
+done < <(zfs list -H -o name,volsize,used -r $IMAGES_DATASET)
