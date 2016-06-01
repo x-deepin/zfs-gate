@@ -5,53 +5,24 @@ decode_qs
 
 set -x
 
-if ! iqn_validate "${request[initiator_iqn]}"; then
-    echo 'HTTP/1.0 400'
-    echo 'Content-type: text/plain'
-    echo 
-    echo invalid initiator iqn: \"${request[initiator_iqn]}\"
-    exit 1
+declare -A initiator_iqns
+parse_initiator_iqn_list "${request[initiator_iqns]}" initiator_iqns
+if ! (( ${#initiator_iqns[@]} )); then
+    http_400 "no initiator iqn specified"
 fi
 
-if ! iqn_validate "${request[target_iqn]}"; then
-    echo 'HTTP/1.0 400'
-    echo 'Content-type: text/plain'
-    echo 
-    echo invalid target iqn: \"${request[target_iqn]}\"
-    exit 1
+src_iqn="${request[target_iqn]}"
+if ! iqn_validate "$src_iqn"; then
+    http_400 "invalid target iqn: \"$src_iqn\""
 fi
 
-src_id="${request[target_iqn]##*.}"
-id=$(uuidgen)
-id=${id##*-}
-if ! zfs snapshot "$IMAGES_DATASET/$src_id@$id" >/dev/null; then
-    echo 'HTTP/1.0 500'
-    echo 'Content-type: text/plain'
-    echo 
-    echo 500 failed to create snapshot of $src_id
-    exit 1
+src_image_id="${src_iqn##*.}"
+if ! image_clone id "$src_image_id"; then
+    http_500 "failed to clone \"$src_iqn\""
 fi
 
-if ! zfs clone "$IMAGES_DATASET/$src_id@$id" "$IMAGES_DATASET/$id" >/dev/null; then
-    echo 'HTTP/1.0 500'
-    echo 'Content-type: text/plain'
-    echo 
-    echo 500 failed to clone $src_id
-    exit 1
-fi
+image_set_initiator_iqns $id "${!initiator_iqns[@]}"
 
-target_iqn="iqn.2016-05.com.deepin:images.${id}"
-targetcli /backstores/iblock                create "$target_iqn" /dev/zvol/"$IMAGES_DATASET"/"$id"
-targetcli /iscsi/                           create "$target_iqn"
-targetcli /iscsi/"$target_iqn"/tpg1/        set attribute authentication=0
-targetcli /iscsi/"$target_iqn"/tpg1/        set attribute demo_mode_write_protect=0
-targetcli /iscsi/"$target_iqn"/tpg1/luns    create /backstores/iblock/"$target_iqn"
-targetcli /iscsi/"$target_iqn"/tpg1/acls    create "${request[initiator_iqn]}"
-targetcli /iscsi/"$target_iqn"/tpg1/portals create
+image_share "$id" target_iqn "${!initiator_iqns[@]}"
 
-echo 'Content-type: text/plain'
-echo 'Cache-Control: no-cache, no-store, must-revalidate'
-echo 'Pragma: no-cache'
-echo 'Expires: 0'
-echo
-echo "$target_iqn"
+http_nocache "$target_iqn"

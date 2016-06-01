@@ -42,3 +42,136 @@ iqn_validate()
 {
     [[ $1 =~ ^iqn\.[0-9]{4}-[0-9]{2}(\.[a-zA-Z0-9_]+){2}(:[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)*)+$ ]]
 }
+
+# target_iqn image_dataset initiator_iqn1 ... initiator_iqnN
+iscsi_share()
+{
+    targetcli /backstores/iblock create "$1" "$2"
+    targetcli /iscsi/ create "$1"
+    targetcli /iscsi/"$1"/tpg1/ set attribute authentication=0
+    targetcli /iscsi/"$1"/tpg1/ set attribute demo_mode_write_protect=0
+    targetcli /iscsi/"$1"/tpg1/luns create /backstores/iblock/"$1"
+    targetcli /iscsi/"$1"/tpg1/portals create
+
+    local _tmp
+    for _tmp in "${@:3}"; do
+        targetcli /iscsi/"$1"/tpg1/acls create "$_tmp"
+    done
+}
+
+# var_name
+image_id_gen()
+{
+    eval $1=\"$(uuidgen)\"
+    eval $1=\"${!1##*-}\"
+}
+
+# image_id_var_name src_image_id
+image_clone()
+{
+    image_id_gen $1
+    zfs snapshot "$IMAGES_DATASET/$2@${!1}" || return 1
+    zfs clone "$IMAGES_DATASET/$2@${!1}" "$IMAGES_DATASET/${!1}"
+}
+
+# image_id_var_name size
+image_create()
+{
+    image_id_gen $1
+    zfs create -s -V $2 "$IMAGES_DATASET/${!1}" >/dev/null
+}
+
+# image_id var_name
+image_get_initiator_iqns()
+{
+    local -i _i
+    local _iqn
+    for (( _i=1; ; _i++ )); do
+        _iqn=$(zfs get zfs-gate:initiaor-iqn$_i $IMAGES_DATASET/$1 2>/dev/null)
+        [[ -z "$_iqn" ]] && break
+        eval $2+=\($_iqn\)
+    done
+}
+
+# image_id iqn1 .. iqnN
+image_set_initiator_iqns()
+{
+    while (( 1 < $# )); do
+        zfs set zfs-gate:initiaor-iqn$(($#-1))="${@:$#:1}" $IMAGES_DATASET/$1
+        set -- "${@:1:$#-1}"
+    done
+}
+
+# image_id target_iqn_var_name [initiator-iqn1 .. initiator-iqnN]
+image_share()
+{
+    local -a _iqns
+    if (( $# > 2 )); then
+        _iqns=(${@:3})
+    else
+        image_get_initiator_iqns $1 _iqns
+    fi
+    eval $2="$TARGET_IQN_PREFIX.$1"
+    iscsi_share "${!2}" "/dev/zvol/$IMAGES_DATASET/$1" "${_iqns[@]}"
+}
+
+# status mimetype message...
+http_response()
+{
+    echo "HTTP/1.0 $1"
+    echo "Content-type: $2"
+    echo 
+    echo -e "${@:3}"
+    exit
+}
+
+http_400()
+{
+    http_response 400 "text/plain" "$@"
+}
+
+http_500()
+{
+    http_response 500 "text/plain" "$@"
+}
+
+http_nocache()
+{
+    echo 'Content-type: text/plain'
+    echo 'Cache-Control: no-cache, no-store, must-revalidate'
+    echo 'Pragma: no-cache'
+    echo 'Expires: 0'
+    echo
+    echo -e "$@"
+}
+
+# initiator_iqn_list variable_name
+# initiator_iqn_list: a list of iqn separated by ,
+# variable_name: name of a variable which type is associatve array
+parse_initiator_iqn_list()
+{
+    local -i _count=0
+    local -i _tmp
+    for _iqn in ${1//,/ }; do
+        if ! iqn_validate "$_iqn"; then
+            http_400 "invalid initiator iqn: \"$_iqn\""
+        fi
+    
+        let _count++
+        eval $2[\"$_iqn\"]=$_count
+    done
+}
+
+# cb cb_args
+# cb: callback command
+# cb_args: arguments be passed to cb
+image_foreach()
+{
+    local _tmp
+    while read _tmp; do
+        _tmp="${_tmp#$IMAGES_DATASET}"
+        _tmp="${_tmp#/}"
+        [[ -z "$_tmp" ]] && continue
+        eval "$1 \"$_tmp\" \"\${@:2}\""
+    done < <(zfs list -r -H -o name "$IMAGES_DATASET" 2>/dev/null)
+}
