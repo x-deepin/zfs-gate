@@ -10,7 +10,7 @@ if ! [[ "${request[size]}" =~ [0-9]+[bBkKmMgGtT]? ]]; then
 fi
 
 declare -A initiator_iqns
-parse_initiator_iqn_list "${request[initiator_iqns]}" initiator_iqns
+parse_initiator_iqn_list initiator_iqns "${request[initiator_iqns]}"
 if ! (( ${#initiator_iqns[@]} )); then
     http_400 "no initiator iqn specified"
 fi
@@ -21,6 +21,6 @@ fi
 
 image_set_initiator_iqns $id "${!initiator_iqns[@]}"
 
-image_share "$id" target_iqn "${!initiator_iqns[@]}"
+image_share target_iqn "$id" "${!initiator_iqns[@]}"
 
 http_nocache "$target_iqn"

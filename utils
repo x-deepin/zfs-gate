@@ -59,6 +59,13 @@ iscsi_share()
     done
 }
 
+# target_iqn
+iscsi_unshare()
+{
+    targetcli /backstores/iblock delete "$1"
+    targetcli /iscsi/ delete "$1"
+}
+
 # var_name
 image_id_gen()
 {
@@ -70,8 +77,7 @@ image_id_gen()
 image_clone()
 {
     image_id_gen $1
-    zfs snapshot "$IMAGES_DATASET/$2@${!1}" || return 1
-    zfs clone "$IMAGES_DATASET/$2@${!1}" "$IMAGES_DATASET/${!1}"
+    zfs clone "$IMAGES_DATASET/$2@freeze" "$IMAGES_DATASET/${!1}"
 }
 
 # image_id_var_name size
@@ -81,15 +87,29 @@ image_create()
     zfs create -s -V $2 "$IMAGES_DATASET/${!1}" >/dev/null
 }
 
-# image_id var_name
+# image_id
+image_is_frozen()
+{
+    zfs list "$IMAGES_DATASET/$1@freeze" &>/dev/null
+}
+
+# image_id
+image_freeze()
+{
+    image_is_frozen "$1" && return
+
+    zfs snapshot "$IMAGES_DATASET/$1@freeze"
+}
+
+# initiator_iqns_var_name image_id
 image_get_initiator_iqns()
 {
     local -i _i
     local _iqn
     for (( _i=1; ; _i++ )); do
-        _iqn=$(zfs get zfs-gate:initiaor-iqn$_i $IMAGES_DATASET/$1 2>/dev/null)
-        [[ -z "$_iqn" ]] && break
-        eval $2+=\($_iqn\)
+        _iqn=$(zfs get zfs-gate:initiaor-iqn$_i -H -o value $IMAGES_DATASET/$2 2>/dev/null)
+        [[ '-' == "$_iqn" ]] && break
+        eval $1+=\($_iqn\)
     done
 }
 
@@ -102,17 +122,44 @@ image_set_initiator_iqns()
     done
 }
 
-# image_id target_iqn_var_name [initiator-iqn1 .. initiator-iqnN]
+# target_iqn_var_name image_id [initiator-iqn1 .. initiator-iqnN]
 image_share()
 {
+    eval $1="$TARGET_IQN_PREFIX.$2"
+    if [[ -d "/sys/kernel/config/target/iscsi/${!1}" ]]; then
+        return
+    fi
+
     local -a _iqns
     if (( $# > 2 )); then
         _iqns=(${@:3})
     else
-        image_get_initiator_iqns $1 _iqns
+        image_get_initiator_iqns _iqns $2
     fi
-    eval $2="$TARGET_IQN_PREFIX.$1"
-    iscsi_share "${!2}" "/dev/zvol/$IMAGES_DATASET/$1" "${_iqns[@]}"
+    iscsi_share "${!1}" "/dev/zvol/$IMAGES_DATASET/$2" "${_iqns[@]}"
+}
+
+image_share_all()
+{
+    local _var_no_use
+    image_foreach 'image_share _var_no_use'
+}
+
+# image_id
+image_unshare()
+{
+    local _target_iqn="$TARGET_IQN_PREFIX.$1"
+    if [[ ! -d "/sys/kernel/config/target/iscsi/$_target_iqn" ]]; then
+        return
+    fi
+
+    iscsi_unshare "$_target_iqn"
+}
+
+# image_id
+image_unshare_all()
+{
+    image_foreach image_unshare
 }
 
 # status mimetype message...
@@ -145,26 +192,24 @@ http_nocache()
     echo -e "$@"
 }
 
-# initiator_iqn_list variable_name
+# initiator_iqns_var_name initiator_iqn_list
 # initiator_iqn_list: a list of iqn separated by ,
-# variable_name: name of a variable which type is associatve array
+# initiator_iqns_var_name: name of a variable which type is associatve array
 parse_initiator_iqn_list()
 {
-    local -i _count=0
     local -i _tmp
-    for _iqn in ${1//,/ }; do
+    for _iqn in ${2//,/ }; do
         if ! iqn_validate "$_iqn"; then
             http_400 "invalid initiator iqn: \"$_iqn\""
         fi
     
-        let _count++
-        eval $2[\"$_iqn\"]=$_count
+        eval $1[\"$_iqn\"]=""
     done
 }
 
-# cb cb_args
+# cb [cb_arg1 .. cb_argN]
 # cb: callback command
-# cb_args: arguments be passed to cb
+# [cb_arg1 .. cb_argN]: arguments being passed to cb
 image_foreach()
 {
     local _tmp
@@ -172,6 +217,25 @@ image_foreach()
         _tmp="${_tmp#$IMAGES_DATASET}"
         _tmp="${_tmp#/}"
         [[ -z "$_tmp" ]] && continue
-        eval "$1 \"$_tmp\" \"\${@:2}\""
+        eval $1 \"$_tmp\" \"\${@:2}\"
     done < <(zfs list -r -H -o name "$IMAGES_DATASET" 2>/dev/null)
 }
+
+# image_id_var_name iqn
+iqn_to_image_id()
+{
+    eval $1=\"${2##*.}\"
+}
+
+# dataset_var_name iqn
+iqn_to_dataset()
+{
+    eval $1=\"$IMAGES_DATASET/${2##*.}\"
+}
+
+# iqn_var_name image_id
+image_id_to_iqn()
+{
+    eval $1=\"$TARGET_IQN_PREFIX.$2\"
+}
+

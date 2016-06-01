@@ -6,23 +6,27 @@ decode_qs
 set -x
 
 declare -A initiator_iqns
-parse_initiator_iqn_list "${request[initiator_iqns]}" initiator_iqns
+parse_initiator_iqn_list initiator_iqns "${request[initiator_iqns]}"
 if ! (( ${#initiator_iqns[@]} )); then
     http_400 "no initiator iqn specified"
 fi
 
-src_iqn="${request[target_iqn]}"
-if ! iqn_validate "$src_iqn"; then
-    http_400 "invalid target iqn: \"$src_iqn\""
+orig_iqn="${request[target_iqn]}"
+if ! iqn_validate "$orig_iqn"; then
+    http_400 "invalid target iqn: \"$orig_iqn\""
 fi
 
-src_image_id="${src_iqn##*.}"
-if ! image_clone id "$src_image_id"; then
-    http_500 "failed to clone \"$src_iqn\""
+iqn_to_image_id orig_image_id "$orig_iqn"
+if ! image_is_frozen "$orig_image_id"; then
+    http_400 "image not frozen: \"$orig_iqn\""
+fi
+
+if ! image_clone id "$orig_image_id"; then
+    http_500 "failed to clone \"$orig_iqn\""
 fi
 
 image_set_initiator_iqns $id "${!initiator_iqns[@]}"
 
-image_share "$id" target_iqn "${!initiator_iqns[@]}"
+image_share target_iqn "$id" "${!initiator_iqns[@]}"
 
 http_nocache "$target_iqn"
