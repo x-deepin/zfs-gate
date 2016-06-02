@@ -1,5 +1,0 @@
-#!/bin/bash
-echo 'content-type: text/plain'
-echo
-
-zpool list -H -o name
