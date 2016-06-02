@@ -1,6 +1,6 @@
 Overview
 ====
-zfs-gate simply exposes some web API that you can used to list, create,
+zfs-gate provides some web API that you can used to list, create,
 destroy, freeze and clone zvols and exposes these block devices through
 iSCSI automatically.
 
