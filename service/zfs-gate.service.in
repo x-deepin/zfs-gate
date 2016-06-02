@@ -1,0 +1,18 @@
+[Unit]
+Description=ZFS Gate
+Requires=network.target
+After=zfs.target iscsitarget.service
+PartOf=zfs.target iscsitarget.service
+Conflicts=shutdown.target poweroff.target
+
+[Service]
+Type=simple
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+ExecStartPre=@ZFS_GATE_DIR@/bin/zfs-gate-share
+ExecStart=/bin/busybox httpd -f \
+    -p 127.0.0.1 \
+    -h /var/www \
+    -vvvv
+
+[Install]
+WantedBy=multi-user.target

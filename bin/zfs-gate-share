@@ -1,0 +1,6 @@
+#!/bin/bash
+source $(dirname $(readlink -f "${BASH_SOURCE}"))/../lib/utils
+
+set -x
+
+image_share_all

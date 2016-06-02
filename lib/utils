@@ -239,3 +239,14 @@ image_id_to_iqn()
     eval $1=\"$TARGET_IQN_PREFIX.$2\"
 }
 
+# iqn_var_name dataset
+dataset_to_iqn()
+{
+    image_id_to_iqn "$1" "${2#$IMAGES_DATASET/}"
+}
+
+set -e
+PS4="> ${0##*/}: "
+set -x
+
+load_conf

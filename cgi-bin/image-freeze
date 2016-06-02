@@ -1,5 +1,5 @@
 #!/bin/bash
-source utils
+source ../lib/utils
 load_conf
 decode_qs
 

@@ -1,7 +1,0 @@
-#!/bin/bash
-source "$(dirname $(readlink -f ${BASH_SOURCE}))/utils"
-load_conf
-
-set -x
-
-image_share_all
