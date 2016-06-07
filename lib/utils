@@ -59,6 +59,11 @@ iscsi_share()
     done
 }
 
+iscsi_is_shared()
+{
+    [[ -d "/sys/kernel/config/target/iscsi/$1" ]]
+}
+
 # target_iqn
 iscsi_unshare()
 {
@@ -137,6 +142,11 @@ image_share()
         image_get_initiator_iqns _iqns $2
     fi
     iscsi_share "${!1}" "/dev/zvol/$IMAGES_DATASET/$2" "${_iqns[@]}"
+}
+
+image_is_shared()
+{
+    iscsi_is_shared "$TARGET_IQN_PREFIX.$2"
 }
 
 image_share_all()

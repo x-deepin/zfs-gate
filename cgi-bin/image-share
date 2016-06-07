@@ -1,0 +1,17 @@
+#!/bin/bash
+source ../lib/utils
+load_conf
+decode_qs
+
+set -x
+
+target_iqn="${request[target_iqn]}"
+if ! iqn_validate "$target_iqn"; then
+    http_400 "invalid target iqn: \"$target_iqn\""
+fi
+
+if ! iscsi_is_shared "$target_iqn"; then
+    iqn_to_image_id id "$target_iqn"
+
+    image_share target_iqn "$id"
+fi

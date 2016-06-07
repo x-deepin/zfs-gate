@@ -1,0 +1,15 @@
+#!/bin/bash
+source ../lib/utils
+load_conf
+decode_qs
+
+set -x
+
+target_iqn="${request[target_iqn]}"
+if ! iqn_validate "$target_iqn"; then
+    http_400 "invalid target iqn: \"$target_iqn\""
+fi
+
+if iscsi_is_shared "$target_iqn"; then
+    iscsi_unshare "$target_iqn"
+fi

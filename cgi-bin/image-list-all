@@ -6,9 +6,7 @@ while read line; do
     cols=($line)
     [[ "$IMAGES_DATASET" == "${cols[0]}" ]] && continue
     dataset_to_iqn "cols[0]" "${cols[0]}"
-    if iscsi_is_shared "${cols[0]}"; then
-        result+="${cols[@]}\n"
-    fi
+    result+="${cols[@]}\n"
 done < <(zfs list -H -o name,volsize,used -r $IMAGES_DATASET)
 
 http_nocache "$result"
