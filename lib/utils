@@ -89,7 +89,7 @@ image_clone()
 image_create()
 {
     image_id_gen $1
-    zfs create -s -V $2 "$IMAGES_DATASET/${!1}" >/dev/null
+    zfs create -s -V $2 -b 128k "$IMAGES_DATASET/${!1}" >/dev/null
 }
 
 # image_id
