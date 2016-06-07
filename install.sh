@@ -15,6 +15,8 @@ www_dir="/var/www"
 
 # check availability of busybox
 type busybox &>/dev/null
+# check availability of uuidgen
+type uuidgen &>/dev/null
 
 # check availability of busybox httpd
 [[ $(busybox httpd -e abc 2>/dev/null) == "abc" ]]
