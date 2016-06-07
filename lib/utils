@@ -249,6 +249,12 @@ image_id_to_iqn()
     eval $1=\"$TARGET_IQN_PREFIX.$2\"
 }
 
+# dataset_var_name image_id
+image_id_to_dataset()
+{
+    eval $1="$IMAGES_DATASET/$2"
+}
+
 # iqn_var_name dataset
 dataset_to_iqn()
 {
