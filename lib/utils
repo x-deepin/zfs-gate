@@ -51,7 +51,15 @@ iscsi_share()
     targetcli /iscsi/"$1"/tpg1/ set attribute authentication=0
     targetcli /iscsi/"$1"/tpg1/ set attribute demo_mode_write_protect=0
     targetcli /iscsi/"$1"/tpg1/luns create /backstores/iblock/"$1"
-    targetcli /iscsi/"$1"/tpg1/portals create
+
+    if [[ -z "$PORTAL_ADDRESSES" ]]; then
+        targetcli /iscsi/"$1"/tpg1/portals create
+    else
+        local _portal_addr
+        for _portal_addr in $PORTAL_ADDRESSES; do
+            targetcli /iscsi/"$1"/tpg1/portals create $_portal_addr
+        done
+    fi
 
     local _tmp
     for _tmp in "${@:3}"; do
